@@ -1,0 +1,293 @@
+----------------------------------------------------12-----------------------------------------------
+
+-----------------------------------------------------1-----------------------------------------------
+--CERINȚĂ: Pentru fiecare cursant, să i se afișeze id-ul, numele complet și media finală obținută la fiecare curs pe care l-a absolvit, 
+--împreună cu id-ul și descrierea cursului (tipul nivelul cursului), dar și starea de promovabilitate a cursantului la cursul respectiv. 
+--Rezultatele vor fi ordonate după id-ul cursantului.
+
+--FOLOSIM: clauza WITH, CASE, ordonări si funcțiile NVL și DECODE (în cadrul aceleiași cereri), 
+--2 funcții pe date calendaristice (sysdate și least), 1 funcție pentru șiruri de caractere (concat) 
+
+with curs_finalizat as (
+    select id_curs cursid, tip, nivel, data_inceput, durata, data_inceput + durata * 7 data_final
+    from curs
+    where data_inceput + durata * 7 < sysdate
+)
+select c2.id_cursant cursant, concat(concat(c2.nume_cursant, ' '), c2.prenume_cursant) nume_cursant, c.id_curs curs,
+        c.tip || ' ' || c.nivel descriere_curs, 
+        avg(nvl(decode(least(cpc.data_predare, cpc.termen_limita), cpc.data_predare, nota), 0)) medie,
+        case 
+        when avg(nvl(decode(least(cpc.data_predare, cpc.termen_limita), cpc.data_predare, nota), 0)) > 5 
+            then 'promovat' 
+        else 'nepromovat' 
+            end promovare
+from curs c, cursant c2, curs_proiect_cursant cpc
+where cpc.id_cursant = c2.id_cursant 
+    and cpc.id_curs = c.id_curs
+    and c.id_curs in (select cursid
+                    from curs_finalizat)
+group by c2.id_cursant, c2.nume_cursant || ' ' || c2.prenume_cursant, c.id_curs, c.tip || ' ' || c.nivel
+order by cursant; 
+
+
+-------------------------------------------------2---------------------------------------------------------
+--CERINȚĂ: Să se afișeze suma totală a celei mai costisitoare tranzacții, împreună cu id-ul și data la care a 
+--fost realizată, dar și id-ul și numele complet al vânzătorului care a realizat-o.
+
+--FOLOSIM: clauza WITH
+
+with cost_tranzactie as (select t.id_tranzactie, t.data, sum(preturi_comenzi.pret_comanda) total_tranzactie
+                        from tranzactii t, comanda c, (select c2.id_comanda, sum(c2.cantitate * s.pret) pret_comanda
+                                                       from comanda c2, stoc s
+                                                       where c2.id_produs = s.id_produs
+                                                       group by c2.id_comanda) preturi_comenzi
+                        where t.id_tranzactie = c.id_tranzactie and c.id_comanda = preturi_comenzi.id_comanda
+                        group by t.id_tranzactie, t.data)
+select a.id_angajat, a.nume || ' ' || a.prenume nume_vanzator, ct.id_tranzactie, ct.data, ct.total_tranzactie
+from cost_tranzactie ct, tranzactii t, angajati a
+where ct.total_tranzactie = (select max(c2.total_tranzactie)
+                            from cost_tranzactie c2)
+    and ct.id_tranzactie = t.id_tranzactie 
+    and t.id_angajat = a.id_angajat;
+
+
+------------------------------------------------3------------------------------------------------------------
+--CERINȚĂ: Să se afișeze id-ul, descrierea (tipul concatenat cu nivelul), numele instructorului, numărul de 
+--cursanți și orașul în care se organizează cursurile de avansați ce au loc în orașe în care se organizează cel puțin 2 cursuri.
+
+--FOLOSIM: subcerere nesincronizată în clauza FROM, clauza WITH, o funcție pentru șiruri de caractere (lower)
+
+with numar_cursuri_oras as (select s.oras oras_potrivit, count(distinct oc.id_curs) numar_cursuri
+                            from organizare_curs oc, sedii s
+                            where oc.id_sediu = s.id_sediu
+                            group by s.oras
+                            having count(distinct oc.id_curs) > 1)
+select aux.curs, aux.descriere_curs, aux.nume, numar_cursanti.numar numar_cursanti, aux.oras
+from (select distinct c.id_curs curs, c.tip || ' ' || c.nivel descriere_curs,
+                      a.nume || ' ' || a.prenume nume, s.oras
+      from curs c, angajati a, organizare_curs oc, sedii s
+      where c.id_curs = oc.id_curs 
+            and oc.id_sediu = s.id_sediu
+            and c.id_angajat = a.id_angajat
+            and lower(c.nivel) = 'avansati') aux,
+    (select id_curs cursid, count(distinct id_cursant) numar
+    from curs_proiect_cursant
+    group by id_curs) numar_cursanti
+where aux.curs = numar_cursanti.cursid
+      and aux.oras in (select oras_potrivit
+                        from numar_cursuri_oras);
+
+-----------------------------------------------4------------------------------------------------------------
+--CERINȚĂ: Să se afișeze pentru fiecare sediu în parte id-ul, strada și orașul, dar și id-ul, numeleși data 
+--angajării instructorului cu vechimea cea mai mică.
+
+--FOLOSIM: subcerere sincronizată în care intervin cel puțin 3 tabele
+
+select distinct a.id_angajat, a.nume || ' ' || a.prenume nume, i.data_angajare, s.id_sediu, s.strada, s.oras
+from angajati a, instructor i, curs c, organizare_curs oc, sedii s
+where a.id_angajat = i.id_angajat and c.id_angajat = i.id_angajat and c.id_curs = oc.id_curs and oc.id_sediu = s.id_sediu
+        and i.data_angajare >= all (select i2.data_angajare
+                                    from instructor i2, curs c2, organizare_curs oc2, sedii s2
+                                    where i2.id_angajat = c2.id_angajat and c2.id_curs = oc2.id_curs
+                                        and oc2.id_sediu = s2.id_sediu
+                                        and s2.id_sediu = s.id_sediu)
+order by s.id_sediu;
+
+
+------------------------------------------------5----------------------------------------------------------
+--CERINȚĂ: Să se afișeze numele și media tuturor cursanților cu medii finale maxime la un curs predat de 
+--Verdes Maria, împreună cu id-ul și descrierea (tipul și nivelul) cursului respectiv. Rezultatele vor fi 
+--ordonate descrescător după medie.
+-------------------------------------------VARIANTA 1------------------------------------------------------
+--FOLOSIM: o funcție de șiruri de caractere (initcap), clauza WITH
+
+with note as (select c.id_cursant, c.nume_cursant || ' ' || c.prenume_cursant nume_cursant, c2.id_curs,
+                    avg(decode(least(cpc.data_predare, cpc.termen_limita), cpc.data_predare, nota, 0)) medie
+              from cursant c, curs_proiect_cursant cpc, curs c2
+              where c.id_cursant = cpc.id_cursant and cpc.id_curs = c2.id_curs
+              group by c.id_cursant, c.nume_cursant, c.prenume_cursant, c2.id_curs)
+select distinct note.nume_cursant, note.id_curs, note.medie, c2.tip || ' ' || c2.nivel descriere_curs
+from curs c2, instructor i, angajati a, note
+where c2.id_angajat = i.id_angajat
+    and i.id_angajat = a.id_angajat
+    and initcap(a.nume) = 'Verdes' and initcap(a.prenume) = 'Maria'
+    and note.id_curs = c2.id_curs
+    and note.medie = (select max(medie)
+                      from note
+                      where note.id_curs = c2.id_curs)
+order by note.medie desc;
+
+-------------------------------------------VARIANTA 2------------------------------------------------------- 
+--FOLOSIM: o funcție de șiruri de caractere (initcap), grupări de date cu  subcerere  nesincronizată în care 
+--intervin cel puțin 3 tabele, funcții grup, filtrare la nivel de grupuri (în cadrul aceleiași cereri)
+
+select distinct cc.nume_cursant || ' ' || cc.prenume_cursant nume, c.id_curs, 
+                avg(decode(least(cpc.data_predare, cpc.termen_limita), cpc.data_predare, cpc.nota, 0)) medie,
+                c.tip || ' ' || c.nivel descriere_curs
+from curs c, curs_proiect_cursant cpc, cursant cc
+where cc.id_cursant = cpc.id_cursant and cpc.id_curs = c.id_curs
+    and c.id_curs in (select id_curs
+                      from curs c2, instructor i, angajati a
+                      where c2.id_angajat = i.id_angajat
+                            and i.id_angajat = a.id_angajat
+                            and initcap(a.nume) = 'Verdes' and initcap(a.prenume) = 'Maria')
+group by cc.nume_cursant, cc.prenume_cursant, c.id_curs, c.tip, c.nivel
+having avg(decode(least(cpc.data_predare, cpc.termen_limita), cpc.data_predare, cpc.nota, 0)) >= all (
+        select avg(decode(least(cpc2.data_predare, cpc2.termen_limita), cpc2.data_predare, cpc2.nota, 0))
+        from curs_proiect_cursant cpc2
+        where cpc2.id_curs = c.id_curs
+        group by cpc2.id_cursant
+)
+order by medie desc;
+
+
+
+
+
+
+-------------------------------------------13-----------------------------------------------------------------
+--------------------------------------------1-----------------------------------------------------------------
+--CERINȚĂ: Să se seteze sediul cursurilor predate de Asavinei Maria în sediul din Piatra Neamț.
+
+update organizare_curs
+set id_sediu = (select id_sediu
+                from sedii
+                where lower(oras) = 'piatra neamt')
+where id_curs in (select c.id_curs
+                from curs c, instructor i, angajati a
+                where c.id_angajat = i.id_angajat and i.id_angajat = a.id_angajat
+                    and lower(a.nume) = 'asavinei' and lower(a.prenume) = 'maria');
+
+--------------------------------------------2-------------------------------------------------------------------
+--CERINȚĂ: Să se șteargă  acei vânzători care au realizat tranzacții în cele mai vechi 3 date calendaristice.
+
+delete
+from angajati
+where id_angajat in (select distinct id_angajat
+                    from tranzactii
+                    where data in (select d
+                                    from (select distinct data d
+                                            from tranzactii
+                                            order by data)
+                                    where rownum <= 3));
+
+--------------------------------------------3------------------------------------------------------------------
+--CERINȚĂ: Să se egaleze cantitățile corespunzătoare comenzilor din prima tranzacție realizată de Monica Geller cu 2.
+
+update comanda
+set cantitate = 2
+where id_tranzactie = (select id_tranzactie
+                        from tranzactii
+                        where (id_tranzactie, data) in (select t2.id_tranzactie, t2.data 
+                                                        from tranzactii t2
+                                                        where t2.id_angajat = (select a.id_angajat
+                                                                                from angajati a
+                                                                                where lower(a.nume) = 'geller' 
+                                                                                and lower(a.prenume) = 'monica'))
+                        and data <= all (select t3.data
+                                         from tranzactii t3
+                                         where id_angajat = (select a2.id_angajat
+                                                             from angajati a2
+                                                             where lower(a2.nume) = 'geller' 
+                                                             and lower(a2.prenume) = 'monica')));
+
+
+
+
+
+
+-----------------------------------------------14(fostul 15)---------------------------------------------------------
+------------------------------------------------OUTER-JOIN-----------------------------------------------------------
+--CERINȚĂ: Afișați pentru fiecare furnizor tipurile de produse pe care le furnizează, numărul de produse de tipul 
+--respectiv din stoc și numărul de comenzi în care se regăsesc produse din fiecare tip inclusiv pentru produsele 
+--care nu se regăsesc în nicio comandă. Ordonați rezultatele după numele furnizorului.
+
+select f.nume_furnizor, t.tip_produs, count(distinct s.id_produs), count(distinct c.id_comanda)
+from furnizori f, tipuri_produse t, stoc s, comanda c
+where f.id_furnizor = t.id_furnizor(+)
+    and t.id_tip = s.id_tip(+)
+    and s.id_produs = c.id_produs(+)
+group by t.tip_produs, f.nume_furnizor
+order by f.nume_furnizor;
+
+
+------------------------------------------------DIVISION-------------------------------------------------------------
+--CERINȚĂ: Să se afișeze id-ul și numele cursanților care au realizat toate proiectele din cadrul unui curs la care au 
+--participat, împreună cu id-ul cursului respectiv și numărul de proiecte. Ordonați rezultatele după id-urile cursurilor.
+
+select c.id_cursant, c.nume_cursant, cpc.id_curs, count(cpc.id_proiect) nr_proiecte
+from cursant c, curs_proiect_cursant cpc
+where c.id_cursant = cpc.id_cursant
+group by c.id_cursant, c.nume_cursant, cpc.id_curs
+having count(cpc.id_proiect) = (select count(distinct cpc2.id_proiect)
+                                from curs_proiect_cursant cpc2
+                                where cpc2.id_curs = cpc.id_curs)
+order by 3;
+
+
+
+
+--------------------------------------------------TOP-N----------------------------------------------------------------
+--CERINȚĂ: 	Să se afișeze cele top 3 sedii care găzduiesc cei mai mulți cursanți.
+
+with curs_cursanti as (select id_curs, count(distinct id_cursant) nr_cursanti
+                        from curs_proiect_cursant
+                        group by id_curs)
+select *
+from (select s.id_sediu, concat(concat(strada, ' '), s.oras) adresa, sum(cc.nr_cursanti) total_cursanti
+        from sedii s, organizare_curs oc, curs_cursanti cc
+        where s.id_sediu = oc.id_sediu
+            and oc.id_curs = cc.id_curs
+        group by s.id_sediu, concat(concat(strada, ' '), s.oras)
+        order by total_cursanti desc) top
+where rownum <= 3;
+
+
+
+
+
+--------------------------------------------------15(fostul 16)--------------------------------------------------------
+--CERINȚĂ: Selectați comenzile care fac parte din tranzacții realizate în ultimele 30 de zile și care se referă la un
+-- produs de tip "croșete".
+---------------------------------------------------INIȚIAL-------------------------------------------------------------
+
+select c.id_comanda, t.data, s.nume_produs
+from comanda c join tranzactii t on (c.id_tranzactie = t.id_tranzactie)
+    join stoc s on (s.id_produs = c.id_produs)
+    join tipuri_produse tt on (s.id_tip = tt.id_tip)
+where (sysdate - t.data) <= 30
+    and lower(tt.tip_produs) = 'crosete';
+
+--R1 = JOIN(comanda, tranzactie)
+--R2 = JOIN(R1, stoc)
+--R3 = JOIN(R2, tipuri_produse)
+--R4 = SELECT(R3, sysdate - data <= 30)
+--R5 = SELECT(R4, tip_produs = 'crosete')
+--REZULTAT = R6 = PROJECT(R5, id_comanda, data, nume_produs)
+
+---------------------------------------------------FINAL---------------------------------------------------------------
+
+select id_comanda, data, nume_produs
+from (select id_comanda, id_tranzactie, id_produs
+      from comanda) R1,
+      (select id_tranzactie, data
+       from tranzactii
+       where sysdate - data <= 30) R5,
+      (select id_produs, id_tip, nume_produs
+       from stoc) R3,
+      (select id_tip, tip_produs
+       from tipuri_produse
+       where lower(tip_produs) = 'crosete') R6
+where R1.id_tranzactie = R5.id_tranzactie
+    and R3.id_tip = R6.id_tip
+    and R1.id_produs = R3.id_produs;
+
+--R1 = PROJECT(comanda, id_comanda, id_tranzactie, id_produs)
+--R2 = PROJECT(tranzactie, id_tranzactie, data)
+--R3 = PROJECT(stoc, id_produs, id_tip, nume_produs)
+--R4 = PROJECT(tipuri_produse, id_tip, tip_produs)
+--R5 = SELECT(R2, sysdate - data <= 30)
+--R6 = SELECT(R4, tip_produs = 'crosete')
+--R7 = JOIN(R1, R5) 
+--R8 = JOIN(R3, R6)
+--REZULTAT = R9 = JOIN(R7, R8)

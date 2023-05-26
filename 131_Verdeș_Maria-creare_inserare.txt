@@ -1,0 +1,559 @@
+--CREĂRI
+
+create table SEDII(
+    id_sediu number(3) constraint pk_sedii primary key,
+    strada varchar2(25),
+    oras varchar2(25) constraint null_oras_sedii not null, 
+    email varchar2(25) constraint unq_email_sedii unique
+);
+
+create table ANGAJATI(
+    id_angajat number(4),
+    nume varchar2(20) constraint null_nume_ang not null,
+    prenume varchar2(20) constraint null_prenume_ang not null,
+    numar_de_telefon varchar2(15) constraint null_telefon_ang not null,
+    email varchar2(20),
+    constraint pk_ang primary key(id_angajat),
+    constraint unq_nume_prenume_ang unique (nume, prenume),
+    constraint unq_telefon_ang unique(numar_de_telefon),
+    constraint unq_email_ang unique(email)
+);
+
+create table INSTRUCTOR(
+    id_angajat number(4),
+    data_angajare date default sysdate,
+    constraint pk_instructor primary key(id_angajat),
+    constraint fk_ang_instructor foreign key (id_angajat) references angajati(id_angajat) 
+        on delete cascade
+);
+
+create table VANZATOR (
+    id_angajat number(4),
+    tura varchar2(15) constraint null_tura_vanzator not null,
+    constraint pk_vanzator primary key(id_angajat),
+    constraint fk_ang_vanzator foreign key (id_angajat) references angajati(id_angajat)
+        on delete cascade
+);
+
+create table CURS (
+    id_curs number(3),
+    id_angajat number(4),
+    tip varchar2(15),
+    nivel varchar2(15) constraint null_nivel_curs not null,
+    data_inceput date default sysdate,
+    durata number(2),
+    constraint pk_curs primary key(id_curs),
+    constraint fk_curs_ang foreign key(id_angajat) references instructor(id_angajat)
+        on delete set null,
+    constraint ck_durata_curs check(durata > 0)
+);
+
+create table ORGANIZARE_CURS (
+    id_curs number(3),
+    id_sediu number(3),
+    ziua_din_saptamana varchar2(15) constraint null_zi_organizare_curs not null,
+    constraint pk_organizare_curs primary key (id_curs, id_sediu, ziua_din_saptamana),
+    constraint fk_organizare_curs_curs foreign key(id_curs) references curs(id_curs)
+        on delete cascade,
+    constraint fk_organizare_curs_sedii foreign key(id_sediu) references sedii(id_sediu)
+        on delete set null
+);
+
+create table CURSANT(
+    id_cursant number(4),
+    nume_cursant varchar2(20) constraint null_nume_cursant not null,
+    prenume_cursant varchar2(20) constraint null_prenume_cursant not null,
+    data_inregistrare date default sysdate,
+    numar_de_telefon varchar2(20) constraint null_telefon_cursant not null,
+    email varchar2(20),
+    constraint pk_cursant primary key (id_cursant),
+    constraint unq_nume_prenume_cursant unique(nume_cursant, prenume_cursant),
+    constraint unq_telefon_cursant unique(numar_de_telefon),
+    constraint unq_email_cursant unique(email)
+);
+
+
+create table PROIECT(
+    id_proiect number(3),
+    nume varchar2(25) constraint null_nume_proiect not null,
+    dificultate number(1),
+    constraint pk_proiect primary key (id_proiect),
+    constraint ck_dificultate_mare_proiect check(dificultate > 0),
+    constraint ck_dificultate_mic_proiect check(dificultate < 6)
+);
+
+create table CURS_PROIECT_CURSANT (
+    id_cursant number(4),
+    id_curs number(3),
+    id_proiect number(3),
+    termen_limita date,
+    data_predare date,
+    nota number(4, 2),
+    constraint pk_curs_proiect_cursant primary key (id_cursant, id_curs, id_proiect),
+    constraint fk_cursant_curs_proiect_cursant foreign key (id_cursant) references cursant(id_cursant)
+        on delete cascade,
+    constraint fk_curs_curs_proiect_cursant foreign key (id_curs) references curs(id_curs)
+        on delete set null,
+    constraint fk_proiect_curs_proiect_cursant foreign key (id_proiect) references proiect(id_proiect)
+        on delete cascade
+);
+
+create table TRANZACTII (
+    id_tranzactie number(3),
+    id_angajat number(4),
+    data date default sysdate,
+    constraint pk_tranz primary key (id_tranzactie),
+    constraint fk_tranz_ang foreign key (id_angajat) references vanzator(id_angajat)
+        on delete set null
+);
+
+create table FURNIZORI (
+    id_furnizor number(4),
+    nume_furnizor varchar2(25) constraint null_nume_furnizori not null,
+    numar_de_telefon varchar2(20) constraint null_telefon_furnizori not null,
+    email varchar2(20),
+    constraint pk_furnizori primary key (id_furnizor),
+    constraint unq_telefon_furnizori unique (numar_de_telefon),
+    constraint unq_email_furnizori unique (email)
+);
+
+create table TIPURI_PRODUSE(
+    id_tip number(3),
+    id_furnizor number(4),
+    tip_produs varchar2(25) constraint null_tip_tipuri_prod not null,
+    constraint pk_tipuri_prod primary key(id_tip),
+    constraint fk_tipuri_prod_furnizori foreign key (id_furnizor) references furnizori(id_furnizor)
+        on delete set null
+);
+
+create table STOC(
+    id_produs number(3),
+    id_tip number(3),
+    nume_produs varchar2(25) constraint null_nume_stoc not null,
+    pret number(5, 2),
+    constraint pk_stoc primary key (id_produs),
+    constraint fk_stoc_tip foreign key (id_tip) references tipuri_produse(id_tip)
+        on delete set null,
+    constraint ck_pret_stoc check(pret > 0)
+);
+
+create table COMANDA(
+    id_comanda number(3),
+    id_tranzactie number(3),
+    id_produs number(3),
+    cantitate number(2),
+    constraint pk_comanda primary key (id_comanda, id_tranzactie),
+    constraint fk_comanda_tranzactie foreign key (id_tranzactie) references tranzactii(id_tranzactie)
+        on delete cascade,
+    constraint fk_comanda_produs foreign key (id_produs) references stoc(id_produs)
+        on delete set null,
+    constraint ck_cantitate_comanda check (cantitate > 0)
+);
+
+
+
+
+
+--SECVENȚE
+
+
+
+
+
+create sequence seq_ang
+start with 1000
+increment by 1
+maxvalue 4000
+nocycle
+nocache;
+
+create sequence seq_curs_
+start with 100
+maxvalue 200
+nocycle
+nocache;
+
+create sequence seq_sedii
+start with 201
+maxvalue 300
+nocycle
+nocache;
+
+create sequence seq_proiect
+start with 301
+maxvalue 500
+nocycle
+nocache;
+
+create sequence seq_cursant
+start with 4001
+maxvalue 9000
+nocycle
+nocache;
+
+create sequence seq_tranz
+start with 501
+maxvalue 700
+nocycle
+nocache;
+
+create sequence seq_furnizori
+start with 701
+maxvalue 800
+nocycle
+nocache;
+
+create sequence seq_tipuri
+start with 801
+maxvalue 850
+nocycle
+nocache;
+
+create sequence seq_produs
+start with 851
+maxvalue 999
+nocycle
+nocache;
+
+create sequence seq_comanda
+start with 100
+maxvalue 999
+nocycle
+nocache;
+
+
+
+--INSERĂRI
+
+
+
+insert into angajati 
+values (seq_ang.nextval, 'Verdes', 'Maria', '0748239832', 'maria@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Bing', 'Chandler', '0734213422', 'friends14@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Geller', 'Monica', '0748453212', 'friends23@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Geller', 'Ross', '0748232432', 'friends24@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Green', 'Rachel', '0756234231', 'friends34@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Tribbiani', 'Joey', '0745534345', 'friends@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Buffay', 'Phoebe', '0734456456', 'friends32@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Cozma', 'Irinel', '0734452356', 'ico@gmail.com');
+insert into angajati 
+values (seq_ang.nextval, 'Asavinei', 'Maria', '0724321234', null);
+insert into angajati 
+values (seq_ang.nextval, 'Leahu', 'Silvia-Ioana', '0749229329', 'yoana@gmail.com');
+
+select *
+from angajati;
+
+insert into instructor 
+values (1000, to_date('13-10-2019', 'dd-mm-yyyy'));
+insert into instructor
+values (1007, to_date('27-02-2020', 'dd-mm-yyyy'));
+insert into instructor
+values (1008, to_date('18-06-2021', 'dd-mm-yyyy'));
+insert into instructor (id_angajat)
+values (1009);
+insert into instructor
+values (1006, to_date('29-03-2020', 'dd-mm-yyyy'));
+
+select *
+from instructor;
+
+insert into vanzator
+values (1001, 'dupa-amiaza');
+insert into vanzator
+values (1002, 'dimineata');
+insert into vanzator
+values (1003, 'dimineata');
+insert into vanzator
+values (1004, 'dupa-amiaza');
+insert into vanzator
+values (1005, 'seara');
+
+select *
+from vanzator;
+
+
+insert into curs
+values (seq_curs_.nextval, 1000, 'crosetat', 'incepatori', to_date('12-09-2021', 'dd-mm-yyyy'), 20);
+insert into curs
+values (seq_curs_.nextval, 1000, 'crosetat', 'incepatori', to_date('12-09-2022', 'dd-mm-yyyy'), 20);
+insert into curs
+values (seq_curs_.nextval, 1000, 'crosetat', 'avansati', to_date('14-09-2022', 'dd-mm-yyyy'), 25);
+insert into curs
+values (seq_curs_.nextval, 1000, 'crosetat', 'avansati', to_date('08-02-2023', 'dd-mm-yyyy'), 25);
+insert into curs
+values (seq_curs_.nextval, 1006, 'impletit', 'avansati', to_date('16-09-2022', 'dd-mm-yyyy'), 25);
+insert into curs
+values (seq_curs_.nextval, 1006, 'impletit', 'avansati', to_date('20-02-2023', 'dd-mm-yyyy'), 25);
+insert into curs
+values (seq_curs_.nextval, 1006, 'crosetat', 'avansati', to_date('10-02-2023', 'dd-mm-yyyy'), 25);
+insert into curs
+values (seq_curs_.nextval, 1007, 'brodat', 'incepatori', to_date('12-09-2022', 'dd-mm-yyyy'), 20);
+insert into curs
+values (seq_curs_.nextval, 1008, 'impletit', 'incepatori', to_date('14-09-2022', 'dd-mm-yyyy'), 20);
+insert into curs
+values (seq_curs_.nextval, 1008, 'impletit', 'incepatori', to_date('16-09-2022', 'dd-mm-yyyy'), 20);
+insert into curs
+values (seq_curs_.nextval, 1009, 'crosetat', 'incepatori', to_date('08-02-2023', 'dd-mm-yyyy'), 20);
+
+select *
+from curs;
+
+insert into sedii
+values (seq_sedii.nextval, 'Anton Vorel 4', 'Piatra Neamt', 'sediuPiatra@gmail.com');
+insert into sedii
+values (seq_sedii.nextval, 'Traian Popovici 130', 'Bucuresti', 'sediuDristor@gmail.com');
+insert into sedii
+values (seq_sedii.nextval, 'Constantin Nacu 9', 'Bucuresti', 'sediuUni@gmail.com');
+insert into sedii
+values (seq_sedii.nextval, 'Splaiul Independentei', 'Bucuresti', 'sediuRegie@gmail.com');
+insert into sedii
+values (seq_sedii.nextval, 'Pictor Arthur Verona', 'Bucuresti', 'sediuRomana@gmail.com');
+
+select *
+from sedii;
+
+insert into organizare_curs
+values (100, 203, 'luni');
+insert into organizare_curs
+values (100, 205, 'miercuri');
+insert into organizare_curs
+values (101, 203, 'luni');
+insert into organizare_curs
+values (102, 207, 'miercuri');
+insert into organizare_curs
+values (103, 206, 'joi');
+insert into organizare_curs
+values (103, 206, 'sambata');
+insert into organizare_curs
+values (104, 205, 'vineri');
+insert into organizare_curs
+values (104, 207, 'luni');
+insert into organizare_curs
+values (105, 203, 'marti');
+insert into organizare_curs
+values (106, 206, 'luni');
+insert into organizare_curs
+values (106, 206, 'marti');
+insert into organizare_curs
+values (107, 202, 'miercuri');
+insert into organizare_curs
+values (108, 205, 'vineri');
+insert into organizare_curs
+values (109, 207, 'joi');
+insert into organizare_curs
+values (109, 207, 'marti');
+insert into organizare_curs
+values (110, 206, 'miercuri');
+
+select *
+from organizare_curs;
+
+insert into proiect
+values (seq_proiect.nextval, 'Tote bag', 3);
+insert into proiect
+values(seq_proiect.nextval, 'Girafa amigurumi', 4);
+insert into proiect
+values(seq_proiect.nextval, 'Top cu maneci bufante', 5);
+insert into proiect
+values(seq_proiect.nextval, 'Vesta', 3);
+insert into proiect
+values(seq_proiect.nextval, 'Bandana', 2);
+insert into proiect
+values(seq_proiect.nextval, 'Fular', 1);
+insert into proiect
+values(seq_proiect.nextval, 'Caciula', 2);
+insert into proiect
+values(seq_proiect.nextval, 'Manusi', 2);
+insert into proiect
+values(seq_proiect.nextval, 'Pulover', 4);
+insert into proiect
+values(seq_proiect.nextval, 'Flori de primavara', 2);
+
+select *
+from proiect;
+
+insert into cursant
+values (seq_cursant.nextval, 'Sima', 'Alexandra', to_date('10.09.2022', 'dd.mm.yyyy'), '0732822383', null);
+insert into cursant
+values (seq_cursant.nextval, 'Loboda', 'Ilinca', to_date('01.09.2022', 'dd.mm.yyyy'), '0743827123', 'ili@gmail.com');
+insert into cursant
+values (seq_cursant.nextval, 'Tofan', 'Ruxandra', to_date('11.09.2022', 'dd.mm.yyyy'), '0767431213', 'ruxit@gmail.com');
+insert into cursant
+values (seq_cursant.nextval, 'Corfu', 'Denisa', to_date('10.09.2021', 'dd.mm.yyyy'), '0732823455', 'denyiubi@gmail.com');
+insert into cursant
+values (seq_cursant.nextval, 'Miron', 'Marta', to_date('05.01.2023', 'dd.mm.yyyy'), '0733214231', 'martuta@gmail.com');
+insert into cursant
+values (seq_cursant.nextval, 'Grigore', 'Ana', to_date('07.09.2022', 'dd.mm.yyyy'), '0724256345', 'ana@gmail.com');
+insert into cursant
+values (seq_cursant.nextval, 'Grigore', 'Ioana', to_date('11.08.2022', 'dd.mm.yyyy'), '0742027676', 'grioana@gmail.com');
+insert into cursant
+values (seq_cursant.nextval, 'Savoaia', 'Maria', to_date('01.09.2022', 'dd.mm.yyyy'), '0755684938', 'maria@gmail.com');
+
+select *
+from cursant;
+
+insert into curs_proiect_cursant
+values(4001, 102, 301, to_date('14.11.2022', 'dd.mm.yyyy'), to_date('13.11.2022', 'dd.mm.yyyy'), 8.5);
+insert into curs_proiect_cursant
+values(4001, 102, 302, to_date('12.10.2022', 'dd.mm.yyyy'), to_date('11.10.2022', 'dd.mm.yyyy'), 9.5);
+insert into curs_proiect_cursant
+values(4001, 102, 303, to_date('15.12.2022', 'dd.mm.yyyy'), to_date('13.12.2022', 'dd.mm.yyyy'), 9);
+insert into curs_proiect_cursant
+values(4001, 108, 306, to_date('13.10.2022', 'dd.mm.yyyy'), to_date('10.10.2022', 'dd.mm.yyyy'), 10);
+insert into curs_proiect_cursant
+values(4001, 108, 307, to_date('27.11.2022', 'dd.mm.yyyy'), to_date('21.11.2022', 'dd.mm.yyyy'), 9);
+insert into curs_proiect_cursant
+values(4002, 102, 301, to_date('14.11.2022', 'dd.mm.yyyy'), to_date('07.11.2022', 'dd.mm.yyyy'), 9.5);
+insert into curs_proiect_cursant
+values(4002, 102, 302, to_date('12.10.2022', 'dd.mm.yyyy'), to_date('10.10.2022', 'dd.mm.yyyy'), 9);
+insert into curs_proiect_cursant
+values(4002, 102, 303, to_date('15.12.2022', 'dd.mm.yyyy'), to_date('14.12.2022', 'dd.mm.yyyy'), 10);
+insert into curs_proiect_cursant
+values(4003, 101, 306, to_date('02.12.2022', 'dd.mm.yyyy'), to_date('29.11.2022', 'dd.mm.yyyy'), 9.3);
+insert into curs_proiect_cursant
+values(4004, 100, 305, to_date('16.11.2022', 'dd.mm.yyyy'), to_date('13.11.2022', 'dd.mm.yyyy'), 8.7);
+insert into curs_proiect_cursant
+values(4005, 105, 303, to_date('28.04.2023', 'dd.mm.yyyy'), to_date('23.04.2023', 'dd.mm.yyyy'), 9);
+insert into curs_proiect_cursant
+values(4005, 106, 309, to_date('27.04.2023', 'dd.mm.yyyy'), to_date('25.04.2022', 'dd.mm.yyyy'), 9.5);
+insert into curs_proiect_cursant
+values(4006, 107, 310, to_date('18.11.2022', 'dd.mm.yyyy'), to_date('16.11.2022', 'dd.mm.yyyy'), 10);
+insert into curs_proiect_cursant
+values(4007, 107, 310, to_date('29.11.2022', 'dd.mm.yyyy'), to_date('30.11.2022', 'dd.mm.yyyy'), 9.5);
+insert into curs_proiect_cursant
+values(4007, 107, 301, to_date('22.10.2022', 'dd.mm.yyyy'), to_date('20.10.2022', 'dd.mm.yyyy'), 9);
+insert into curs_proiect_cursant
+values(4007, 109, 306, to_date('26.11.2022', 'dd.mm.yyyy'), to_date('23.11.2022', 'dd.mm.yyyy'), 9);
+insert into curs_proiect_cursant
+values(4007, 109, 308, to_date('29.10.2022', 'dd.mm.yyyy'), to_date('25.10.2022', 'dd.mm.yyyy'), 9.5);
+insert into curs_proiect_cursant
+values(4008, 104, 304, to_date('25.11.2022', 'dd.mm.yyyy'), to_date('25.11.2022', 'dd.mm.yyyy'), 9.5);
+
+select *
+from curs_proiect_cursant;
+
+insert into tranzactii (id_tranzactie, id_angajat)
+values (seq_tranz.nextval, 1001);
+insert into tranzactii
+values (seq_tranz.nextval, 1001, to_date('13.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1002, to_date('13.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1002, to_date('15.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1003, to_date('17.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1003, to_date('18.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1004, to_date('18.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1004, to_date('19.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1005, to_date('20.04.2023', 'dd.mm.yyyy'));
+insert into tranzactii
+values (seq_tranz.nextval, 1005, to_date('23.04.2023', 'dd.mm.yyyy'));
+
+select *
+from tranzactii;
+
+insert into furnizori
+values (seq_furnizori.nextval, 'Andrele', '0747231123', null);
+insert into furnizori
+values (seq_furnizori.nextval, 'GrannyMary', '0753423123', 'mary@gmail.com');
+insert into furnizori
+values (seq_furnizori.nextval, 'Nasturel', '0785693231', 'nasturel@gmail.com');
+insert into furnizori
+values (seq_furnizori.nextval, 'Bobine SRL', '0734122122', 'bobine@gmail.com');
+insert into furnizori
+values (seq_furnizori.nextval, 'Tesaturi', '0782728273', null);
+
+select *
+from furnizori;
+
+insert into tipuri_produse
+values (seq_tipuri.nextval, 701, 'andrele');
+insert into tipuri_produse
+values (seq_tipuri.nextval, 701, 'crosete');
+insert into tipuri_produse
+values (seq_tipuri.nextval, 702, 'amigurumi');
+insert into tipuri_produse
+values (seq_tipuri.nextval, 703, 'nasturi');
+insert into tipuri_produse
+values (seq_tipuri.nextval, 704, 'bobine');
+insert into tipuri_produse
+values (seq_tipuri.nextval, 705, 'tesaturi');
+
+select *
+from tipuri_produse;
+
+insert into stoc
+values(seq_produs.nextval, 810, 'andrele 5.0', 8);
+insert into stoc
+values(seq_produs.nextval, 810, 'andrele 7.0', 9);
+insert into stoc
+values(seq_produs.nextval, 811, 'croseta ergonomica 3.5', 10);
+insert into stoc
+values(seq_produs.nextval, 811, 'croseta ergonomica 5.5', 11);
+insert into stoc
+values(seq_produs.nextval, 811, 'croseta plastic 5.0', 7);
+insert into stoc
+values(seq_produs.nextval, 812, 'urs plus', 23);
+insert into stoc
+values(seq_produs.nextval, 812, 'broasca rotunda', 15);
+insert into stoc
+values(seq_produs.nextval, 813, 'nasture lemn 3mm', 2);
+insert into stoc
+values(seq_produs.nextval, 813, 'nasture plastic negru 4.5mm', 1.5);
+insert into stoc
+values(seq_produs.nextval, 814, 'bobina lana alba 5', 17);
+insert into stoc
+values(seq_produs.nextval, 814, 'bob alize bumbac negru 3', 18);
+insert into stoc
+values(seq_produs.nextval, 814, 'bob alize acril albstr 4', 15);
+insert into stoc
+values(seq_produs.nextval, 815, 'dantela neagra 1m', 25);
+
+select *
+from stoc;
+
+insert into comanda
+values (seq_comanda.nextval, 501, 854, 1);
+insert into comanda
+values (seq_comanda.nextval, 501, 865, 3);
+insert into comanda
+values (seq_comanda.nextval, 502, 866, 3);
+insert into comanda
+values (seq_comanda.nextval, 502, 858, 4);
+insert into comanda
+values (seq_comanda.nextval, 503, 856, 1);
+insert into comanda
+values (seq_comanda.nextval, 504, 856, 2);
+insert into comanda
+values (seq_comanda.nextval, 505, 857, 3);
+insert into comanda
+values (seq_comanda.nextval, 505, 863, 2);
+insert into comanda
+values (seq_comanda.nextval, 506, 854, 1);
+insert into comanda
+values (seq_comanda.nextval, 506, 860, 2);
+insert into comanda
+values (seq_comanda.nextval, 506, 858, 3);
+insert into comanda
+values (seq_comanda.nextval, 507, 863, 2);
+insert into comanda
+values (seq_comanda.nextval, 508, 866, 2);
+insert into comanda
+values (seq_comanda.nextval, 509, 852, 1);
+insert into comanda
+values (seq_comanda.nextval, 510, 855, 1);
+
+select *
+from comanda;
